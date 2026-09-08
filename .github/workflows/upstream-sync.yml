@@ -1,0 +1,26 @@
+name: Upstream Sync
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run upstream sync
+        run: hack/upstream-sync.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Add or remove GitHub usernames as needed
+          REVIEWERS: |
+            bartwensley
+            browsell
+            irinamihai
+            Missxiaoguo
