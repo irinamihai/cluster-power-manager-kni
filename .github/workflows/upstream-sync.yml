@@ -1,7 +1,5 @@
 name: Upstream Sync
 on:
-  schedule:
-    - cron: '0 * * * *' # Every hour
   workflow_dispatch:
 
 permissions:
@@ -22,9 +20,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Add or remove GitHub usernames as needed
           REVIEWERS: |
-            nocturnalastro
-            vitus133
-            josephdrichard
-            jzding
-            lack
-            sebsoto
+            bartwensley
+            browsell
+            irinamihai
+            Missxiaoguo

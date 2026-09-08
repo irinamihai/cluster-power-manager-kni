@@ -1,0 +1,11 @@
+---
+# See the OWNERS docs at https://go.k8s.io/owners
+
+component: "Telco"
+filters:
+  ".*":
+    approvers:
+      - cluster-power-manager-approvers
+    reviewers:
+      - cluster-power-manager-reviewers
+subcomponent: "Cluster Power Manager"

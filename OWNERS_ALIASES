@@ -1,0 +1,14 @@
+---
+# See the OWNERS docs at https://go.k8s.io/owners
+
+aliases:
+  cluster-power-manager-approvers:
+    - bartwensley
+    - browsell
+    - irinamihai
+    - Missxiaoguo
+  cluster-power-manager-reviewers:
+    - bartwensley
+    - browsell
+    - irinamihai
+    - Missxiaoguo

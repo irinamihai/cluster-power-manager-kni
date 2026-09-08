@@ -2,6 +2,9 @@
 #
 # upstream-sync.sh - Sync upstream PRs into the downstream repo
 #
+# Adapted from openshift/ptp-operator @ 6b0f464 (2026-06-29)
+# https://github.com/openshift/ptp-operator/blob/6b0f464/hack/upstream-sync.sh
+#
 # Finds merged PRs from the upstream repo that aren't yet in the downstream
 # repo, extracts bug references (OCPBUGS-*, CNF-*) from PR titles, bodies,
 # commit messages, trailers, and linked Jira issues, then creates (or updates)
@@ -113,15 +116,15 @@ SYNC_IGNORE_FILE="${SYNC_IGNORE_FILE:-.upstream-sync-ignore}"
 
 # Jira configuration (set JIRA_BASE_URL="" to disable Jira scanning)
 JIRA_BASE_URL="${JIRA_BASE_URL:-https://redhat.atlassian.net}"
-JIRA_PROJECTS="${JIRA_PROJECTS:-OCPBUGS}"
-JIRA_COMPONENTS="${JIRA_COMPONENTS:-Networking / ptp,Cloud Native Events / Cloud Event Proxy}"
+JIRA_PROJECTS="${JIRA_PROJECTS:-CNF,OCPBUGS}"
+JIRA_COMPONENTS="${JIRA_COMPONENTS:-}"
 
 # Derive owner/repo from git remote URLs if not explicitly set
 if [ -z "${UPSTREAM_REPO:-}" ]; then
   if git remote get-url "$UPSTREAM_REMOTE" &>/dev/null; then
     UPSTREAM_REPO=$(git remote get-url "$UPSTREAM_REMOTE" | sed -E 's#.*(github\.com[:/])##; s/\.git$//')
   else
-    UPSTREAM_REPO="k8snetworkplumbingwg/ptp-operator"
+    UPSTREAM_REPO="cluster-power-manager/cluster-power-manager"
   fi
 fi
 if [ -z "${DOWNSTREAM_REPO:-}" ]; then
@@ -232,6 +235,20 @@ should_skip_pr() {
     return 1
   fi
 
+  # TODO(cluster-power-manager): This auto-skip heuristic checks against the
+  # CURRENT downstream HEAD, so it cannot tell "downstream intentionally deleted
+  # this file" (skip is correct) apart from "upstream just added a brand-new file
+  # since the merge base" (skip is WRONG — we want new upstream files). It only
+  # misfires on add-only PRs (PRs touching nothing that already exists
+  # downstream); mixed PRs survive because any one existing file flips the flag.
+  # This heuristic only earns its keep if downstream deletes upstream files; if
+  # this repo stays purely additive (only adds downstream-only files, never
+  # deletes upstream ones), it has little upside and can silently drop wanted
+  # add-only PRs. That divergence model isn't settled yet — revisit once it is.
+  # Options: (a) keep it and catch drops in PR review via the "Skipped PRs"
+  # list, or (b) disable this branch and rely on manual SKIP_PRS. A smarter fix
+  # would compare against the merge base rather than current HEAD to actually
+  # distinguish a downstream deletion from a new-upstream-file.
   local any_exists_downstream=false
   while IFS= read -r file; do
     [ -z "$file" ] && continue
