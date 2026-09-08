@@ -1,0 +1,46 @@
+# PowerProfile for x86_64 with NodeSelector and CpuCapacity
+# This example demonstrates how to deploy a PowerProfile with a NodeSelector and CpuCapacity.
+# This PowerProfile will be applied to all nodes that match the NodeSelector and it can take up to 40 of the CPUs.
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerProfile
+metadata:
+ name: application
+ namespace: power-manager
+spec:
+ # The CpuCapacity is used to set the maximum number of CPUs that can be used by the PowerProfile.
+ cpuCapacity: 40
+ # cpuCapacity: "50%"
+ # The NodeSelector is used to select the nodes that the PowerProfile should be applied to.
+ nodeSelector:
+   labelSelector:
+     matchLabels:
+       test3: test3
+     matchExpressions:
+       - key: test
+         operator: In
+         values:
+         - test
+       - key: mno
+         operator: DoesNotExist
+       - key: test2
+         operator: Exists
+ pstates:
+   # When cpuScalingPolicy is specified, governor must be set to "userspace".
+   governor: "powersave"
+   # For min and max, the following apply:
+   # - "0%" is a valid configuration
+   # - "100%" is a valid configuration
+   # - if unspecified, the hardware limit is used
+   # min: "25%" # accepted
+   # max: "75%" # accepted
+   min: 3000 # Optional, hardware limit is used when unspecified
+   max: 3500 # Optional, hardware limit is used when unspecified
+   epp: balance_performance
+ cstates:
+   # Configure C-states using either 'maxLatencyUs' or 'names', but not both.
+   names:
+     C1E: true
+     POLL: true
+     C6: false
+     C1: true
+   # maxLatencyUs: 1

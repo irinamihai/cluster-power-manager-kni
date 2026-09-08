@@ -1,0 +1,49 @@
+# OpenSSF Scorecard assesses the repo's security posture (branch protection,
+# dependency management, CI config, etc.). Results appear in the repo's
+# Security tab > Code scanning.
+name: OpenSSF Scorecard
+
+on:
+  workflow_dispatch:
+  branch_protection_rule:
+  schedule:
+    - cron: "0 8 1 * *" # First day of each month at 8:00 AM UTC
+
+permissions:
+  contents: read
+
+jobs:
+  scorecard:
+    name: Scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # Needed to upload the results to code-scanning dashboard.
+      security-events: write
+      # Used to sign Scorecard results and receive a badge.
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Run Scorecard analysis
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          # Publish the results for public repositories to enable scorecard badges. For more details, see
+          # https://github.com/ossf/scorecard-action#publishing-results.
+          publish_results: false
+      - name: Upload Scorecard results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 30
+      # Upload the results to GitHub's code scanning dashboard.
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
+        with:
+          sarif_file: results.sarif

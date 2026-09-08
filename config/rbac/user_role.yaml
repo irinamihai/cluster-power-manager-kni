@@ -1,0 +1,39 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: user-role
+rules:
+  - apiGroups:
+      - power.cluster-power-manager.github.io
+    resources:
+      - powerconfigs
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - power.cluster-power-manager.github.io
+    resources:
+      - powerconfigs/status
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - power.cluster-power-manager.github.io
+    resources:
+      - powerprofiles
+    verbs:
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - power.cluster-power-manager.github.io
+    resources:
+      - powerprofiles/status
+    verbs:
+      - get
+      - update

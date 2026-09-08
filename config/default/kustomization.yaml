@@ -1,0 +1,34 @@
+# Adds namespace to all resources.
+namespace: power-manager
+
+# Value of this field is prepended to the
+# names of all resources, e.g. a deployment named
+# "wordpress" becomes "alices-wordpress".
+# Note that it should also match with the prefix (text before '-') of the namespace
+# field above.
+namePrefix: power-manager-
+
+# Labels to add to all resources and selectors.
+#commonLabels:
+#  someName: someValue
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../crd
+- ../rbac
+- ../manager
+- ../webhook
+- ../certmanager
+
+patches:
+- path: manager_webhook_patch.yaml
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: controller-manager
+- path: webhookcainjection_patch.yaml
+
+replacements:
+- path: certmanager_replacements.yaml

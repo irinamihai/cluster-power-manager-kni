@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dpdk
+  namespace: power-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dpdk-privileged-scc
+  namespace: power-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: dpdk
+    namespace: power-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpdk-testapp
+  namespace: power-manager
+  labels:
+    app: dpdk-testapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpdk-testapp
+  template:
+    metadata:
+      labels:
+        app: dpdk-testapp
+    spec:
+      serviceAccountName: dpdk
+      hostNetwork: true
+      containers:
+        - name: server
+          env:
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.uid
+          image: quay.io/container-perf-tools/dpdk-testpmd:24.11
+          imagePullPolicy: Always
+          command: ["tail", "-f", "/dev/null"]
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: "16"
+              hugepages-1Gi: "5Gi"
+              memory: "3Gi"
+              power.cluster-power-manager.github.io/application-dpdk: "16"
+            limits:
+              cpu: "16"
+              hugepages-1Gi: "5Gi"
+              memory: "3Gi"
+              power.cluster-power-manager.github.io/application-dpdk: "16"
+          volumeMounts:
+            - mountPath: /hugepages-1Gi
+              name: hugepages-1gi
+            - mountPath: /var/run/memif
+              name: memif
+            - name: pods
+              mountPath: /var/run/dpdk/rte
+              subPathExpr: $(POD_UID)/dpdk/rte
+        - name: client
+          env:
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.uid
+          image: quay.io/container-perf-tools/dpdk-testpmd:24.11
+          imagePullPolicy: IfNotPresent
+          command: ["tail", "-f", "/dev/null"]
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: "16"
+              hugepages-1Gi: "5Gi"
+              memory: "3Gi"
+              power.cluster-power-manager.github.io/performance: "16"
+            limits:
+              cpu: "16"
+              hugepages-1Gi: "5Gi"
+              memory: "3Gi"
+              power.cluster-power-manager.github.io/performance: "16"
+          volumeMounts:
+            - mountPath: /hugepages-1Gi
+              name: hugepages-1gi
+            - mountPath: /var/run/memif
+              name: memif
+            - name: pods
+              mountPath: /var/run/dpdk/rte
+              subPathExpr: $(POD_UID)/dpdk/rte
+      volumes:
+        - name: hugepages-1gi
+          emptyDir:
+            medium: HugePages-1Gi
+        - name: memif
+          emptyDir: {}
+        - name: pods
+          hostPath:
+            path: /var/lib/power-node-agent/pods
+            type: DirectoryOrCreate

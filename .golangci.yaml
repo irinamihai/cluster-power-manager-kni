@@ -1,0 +1,60 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - goconst        # finds repeated strings that could be constants
+    - gocritic       # code style, diagnostics, and performance checks
+    - govet          # go vet checks
+    - gosec          # security checks
+    - gocyclo        # cyclomatic complexity
+    - ineffassign    # unused variable assignments
+    - staticcheck    # comprehensive static analysis
+    - unused         # unused code detection
+    - misspell       # catches common spelling mistakes in comments/strings
+    - unconvert      # removes unnecessary type conversions
+    - unparam        # reports unused function parameters
+    - errorlint      # finds issues with error wrapping
+  exclusions:
+    generated: lax # skip generated files
+    rules:
+      - path: (_test\.go|test_common\.go)
+        linters:
+          - unused
+          - unparam
+          - gosec
+
+  settings:
+    goconst:
+      ignore-tests: true
+    gosec:
+      excludes:
+        - G115 # integer overflow conversions — safe for CPU IDs and frequencies
+    gocritic:
+      enabled-checks: # Keep only non-default ones
+        # Diagnostic
+        - commentedOutCode
+        - nilValReturn
+        - weakCond
+        - octalLiteral
+        - sloppyReassign
+        # Performance
+        - equalFold
+        - indexAlloc
+        - rangeExprCopy
+        - appendCombine
+    staticcheck:
+      checks:
+        - all
+        # Exclude some staticcheck rules
+        - -QF1008 # embedded field selector simplification
+        - -ST1000 # package comments
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+output:
+  sort-results: true

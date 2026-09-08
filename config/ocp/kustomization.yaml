@@ -1,0 +1,45 @@
+namespace: power-manager
+
+namePrefix: power-manager-
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../crd
+- ../rbac
+- ../manager
+- ../webhook
+
+patches:
+- path: manager_webhook_patch.yaml
+  target:
+    group: apps
+    version: v1
+    kind: Deployment
+    name: controller-manager
+- path: webhookcainjection_patch.yaml
+- path: webhook_service_patch.yaml
+# Add SCC to the node-agent ClusterRole
+- target:
+    kind: ClusterRole
+    name: node-agent-role
+  patch: |-
+    - op: add
+      path: /rules/-
+      value:
+        apiGroups: ["security.openshift.io"]
+        resourceNames: ["privileged"]
+        resources: ["securitycontextconstraints"]
+        verbs: ["use"]
+# Add SCC to the controller-gen-generated manager ClusterRole
+- target:
+    kind: ClusterRole
+    name: manager-role
+  patch: |-
+    - op: add
+      path: /rules/-
+      value:
+        apiGroups: ["security.openshift.io"]
+        resourceNames: ["privileged"]
+        resources: ["securitycontextconstraints"]
+        verbs: ["use"]

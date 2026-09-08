@@ -1,0 +1,66 @@
+# Replacements for cert-manager webhook certificate DNS names and CA injection.
+# These substitute the webhook Service name and namespace into the Certificate
+# dnsNames and the ValidatingWebhookConfiguration CA injection annotation.
+- source:
+    kind: Service
+    version: v1
+    name: webhook-service
+    fieldPath: metadata.name
+  targets:
+  - select:
+      group: cert-manager.io
+      kind: Certificate
+      name: serving-cert
+    fieldPaths:
+    - spec.dnsNames.0
+    - spec.dnsNames.1
+    options:
+      delimiter: '.'
+      index: 0
+- source:
+    kind: Service
+    version: v1
+    name: webhook-service
+    fieldPath: metadata.namespace
+  targets:
+  - select:
+      group: cert-manager.io
+      kind: Certificate
+      name: serving-cert
+    fieldPaths:
+    - spec.dnsNames.0
+    - spec.dnsNames.1
+    options:
+      delimiter: '.'
+      index: 1
+- source:
+    kind: Service
+    version: v1
+    name: webhook-service
+    fieldPath: metadata.namespace
+  targets:
+  - select:
+      group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: validating-webhook-configuration
+    fieldPaths:
+    - metadata.annotations.[cert-manager.io/inject-ca-from]
+    options:
+      delimiter: '/'
+      index: 0
+- source:
+    kind: Certificate
+    group: cert-manager.io
+    version: v1
+    name: serving-cert
+    fieldPath: metadata.name
+  targets:
+  - select:
+      group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: validating-webhook-configuration
+    fieldPaths:
+    - metadata.annotations.[cert-manager.io/inject-ca-from]
+    options:
+      delimiter: '/'
+      index: 1

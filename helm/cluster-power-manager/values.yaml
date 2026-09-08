@@ -1,0 +1,224 @@
+# Default values for cluster-power-manager.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Power manager namespace
+namespace:
+  label: controller-manager
+  name: power-manager
+
+# Service Account for the overarching operator
+operatorserviceaccount:
+  name: power-manager-controller-manager
+  namespace: power-manager
+
+# Service Account for the Power Node Agent
+agentserviceaccount:
+  name: power-manager-node-agent
+  namespace: power-manager
+
+# Leader election Role for the operator (mirrors config/rbac/leader_election_role.yaml)
+leaderelectionrole:
+  name: power-manager-leader-election-role
+  namespace: power-manager
+  rules:
+  - apiGroups:
+    - coordination.k8s.io
+    resources:
+    - leases
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+  - apiGroups:
+    - ""
+    resources:
+    - events
+    verbs:
+    - create
+    - patch
+
+# Leader election Role Binding
+leaderelectionrolebinding:
+  name: power-manager-leader-election-role-binding
+  namespace: power-manager
+  serviceaccount:
+    name: power-manager-controller-manager
+    namespace: power-manager
+  rolename: power-manager-leader-election-role
+
+# DaemonSet Role for the operator (mirrors config/rbac/daemonset_role.yaml)
+daemonsetrole:
+  name: power-manager-daemonset-manager-role
+  namespace: power-manager
+  rules:
+  - apiGroups:
+    - apps
+    resources:
+    - daemonsets
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - delete
+
+# DaemonSet Role Binding
+daemonsetrolebinding:
+  name: power-manager-daemonset-manager-role-binding
+  namespace: power-manager
+  serviceaccount:
+    name: power-manager-controller-manager
+    namespace: power-manager
+  rolename: power-manager-daemonset-manager-role
+
+# Cluster Role for the overarching operator (mirrors config/rbac/role.yaml manager-role)
+operatorclusterrole:
+  name: power-manager-manager-role
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    - pods
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    resources:
+    - powerconfigs
+    - powerprofiles
+    verbs:
+    - delete
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    resources:
+    - powerconfigs/status
+    - powernodestates/status
+    verbs:
+    - get
+    - patch
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    resources:
+    - powernodeconfigs
+    - uncores
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    resources:
+    - powernodestates
+    verbs:
+    - create
+    - delete
+    - get
+    - list
+    - watch
+
+# Cluster Role Binding for the overarching operator
+operatorclusterrolebinding:
+  name: power-manager-manager-role-binding
+  serviceaccount:
+    name: power-manager-controller-manager
+    namespace: power-manager
+  clusterrolename: power-manager-manager-role
+
+# Cluster Role for the Power Node Agent (mirrors config/rbac/role.yaml node-agent-role)
+agentclusterrole:
+  name: power-manager-node-agent-role
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    - pods
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - nodes/status
+    verbs:
+    - get
+    - patch
+    - update
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    resources:
+    - powernodeconfigs
+    - powernodestates
+    - powerprofiles
+    - uncores
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    resources:
+    - powernodestates/status
+    verbs:
+    - get
+    - patch
+
+# Cluster Role Binding for the Power Node Agent
+agentclusterrolebinding:
+  name: power-manager-node-agent-role-binding
+  serviceaccount:
+    name: power-manager-node-agent
+    namespace: power-manager
+  clusterrolename: power-manager-node-agent-role
+
+# Deployment for the overarching operator
+operator:
+  name: controller-manager
+  namespace: power-manager
+  labels:
+    controlplane: controller-manager
+  replicas: 1
+  container:
+    serviceaccount:
+      name: power-manager-controller-manager
+    command: /manager
+    args: --enable-leader-election
+    image: ghcr.io/cluster-power-manager/cluster-power-manager-operator:latest
+    name: manager
+    cpu:
+      limits: 100m
+      requests: 100m
+    memory:
+      limits: 30Mi
+      requests: 30Mi
+
+# Values for the PowerConfig
+powerconfig:
+  name: power-config
+  namespace: power-manager
+  nodeselector:
+    label: "feature.node.kubernetes.io/power-node"
+    value: 'true'
+
+# Values for the Shared PowerProfile
+sharedprofile:
+  name: shared
+  namespace: power-manager
+  spec:
+    max: 1000
+    min: 1000
+    epp: "power"
+    governor: "powersave"

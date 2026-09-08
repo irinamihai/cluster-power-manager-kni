@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/name: power-operator
+    app.kubernetes.io/component: power-operator
+    control-plane: controller-manager
+  name: power-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: power-manager
+  labels:
+    control-plane: controller-manager
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: controller-manager
+    spec:
+      serviceAccountName: controller-manager
+      containers:
+        - command:
+            - /manager
+          args:
+            - --enable-leader-election
+            - --zap-log-level
+            - "3"
+          imagePullPolicy: IfNotPresent
+          image: ghcr.io/cluster-power-manager/cluster-power-manager-operator:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          name: manager
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - mountPath: /sys/fs/cgroup
+              name: cgroup
+              mountPropagation: HostToContainer
+              readOnly: true
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup

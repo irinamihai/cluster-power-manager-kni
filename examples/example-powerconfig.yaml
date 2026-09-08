@@ -1,0 +1,9 @@
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerConfig
+metadata:
+  name: power-config
+  namespace: power-manager
+spec:
+  powerNodeSelector:
+    # Add labels here for the Nodes you want the PowerNodeAgent to be applied to
+    feature.node.kubernetes.io/power-node: "true"

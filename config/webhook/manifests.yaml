@@ -1,0 +1,67 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-power-cluster-power-manager-github-io-v1alpha1-powernodeconfig
+  failurePolicy: Fail
+  name: vpowernodeconfig.kb.io
+  rules:
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - powernodeconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-power-cluster-power-manager-github-io-v1alpha1-powerprofile
+  failurePolicy: Fail
+  name: vpowerprofile.kb.io
+  rules:
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - powerprofiles
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-power-cluster-power-manager-github-io-v1alpha1-uncore
+  failurePolicy: Fail
+  name: vuncore.kb.io
+  rules:
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - uncores
+  sideEffects: None

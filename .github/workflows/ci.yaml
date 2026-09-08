@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - LICENSE
+      - .gitignore
+      - docs/**
+      - hack/**
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - LICENSE
+      - .gitignore
+      - docs/**
+      - hack/**
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+      - name: Generate, build CRDs, and run unit and integration tests
+        run: make test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: go.mod
+      - name: golangci-lint
+        run: make golangci-lint
+
+  images:
+    name: Images
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 20
+    env:
+      REGISTRY: ghcr.io
+      OPERATOR_IMAGE: ghcr.io/cluster-power-manager/cluster-power-manager-operator
+      OPERATOR_DESCRIPTION: Cluster Power Manager Operator
+      AGENT_IMAGE: ghcr.io/cluster-power-manager/cluster-power-node-agent
+      AGENT_DESCRIPTION: Cluster Power Manager Node Agent
+      IMAGE_TAG: latest
+      DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Operator image metadata
+        id: operator-meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ${{ env.OPERATOR_IMAGE }}
+          tags: type=raw,value=${{ env.IMAGE_TAG }}
+          labels: org.opencontainers.image.description=${{ env.OPERATOR_DESCRIPTION }}
+          annotations: org.opencontainers.image.description=${{ env.OPERATOR_DESCRIPTION }}
+      - name: ${{ github.event_name == 'push' && 'Build and push operator image' || 'Build operator image' }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: build/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.operator-meta.outputs.tags }}
+          labels: ${{ steps.operator-meta.outputs.labels }}
+          annotations: ${{ steps.operator-meta.outputs.annotations }}
+      - name: Agent image metadata
+        id: agent-meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ${{ env.AGENT_IMAGE }}
+          tags: type=raw,value=${{ env.IMAGE_TAG }}
+          labels: org.opencontainers.image.description=${{ env.AGENT_DESCRIPTION }}
+          annotations: org.opencontainers.image.description=${{ env.AGENT_DESCRIPTION }}
+      - name: ${{ github.event_name == 'push' && 'Build and push agent image' || 'Build agent image' }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: build/Dockerfile.nodeagent
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.agent-meta.outputs.tags }}
+          labels: ${{ steps.agent-meta.outputs.labels }}
+          annotations: ${{ steps.agent-meta.outputs.annotations }}

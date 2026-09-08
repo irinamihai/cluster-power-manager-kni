@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: daemonset-manager-role-binding
+subjects:
+- kind: ServiceAccount
+  name: controller-manager
+  namespace: power-manager
+roleRef:
+  kind: Role
+  name: daemonset-manager-role
+  apiGroup: rbac.authorization.k8s.io

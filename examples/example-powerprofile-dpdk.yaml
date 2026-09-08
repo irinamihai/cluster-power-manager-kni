@@ -1,0 +1,55 @@
+# PowerProfile for x86_64 with cpuScalingPolicy
+# This example demonstrates how to deploy a PowerProfile with a cpuScalingPolicy.
+# This PowerProfile will be applied to all nodes that match the NodeSelector and it can take up to 40 of the CPUs.
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerProfile
+metadata:
+ name: application-dpdk
+ namespace: power-manager
+spec:
+ # The CpuCapacity is used to set the maximum number of CPUs that can be used by the PowerProfile.
+ cpuCapacity: 40
+ # cpuCapacity: "50%"
+ # The NodeSelector is used to select the nodes that the PowerProfile should be applied to.
+ nodeSelector:
+   labelSelector:
+     matchLabels:
+       test3: test3
+     matchExpressions:
+       - key: test
+         operator: In
+         values:
+         - test
+       - key: mno
+         operator: DoesNotExist
+       - key: test2
+         operator: Exists
+ pstates:
+   # When cpuScalingPolicy is specified, governor must be set to "userspace".
+   governor: "userspace"
+   # For min and max, the following apply:
+   # - "0%" is a valid configuration
+   # - "100%" is a valid configuration
+   # - if unspecified, the hardware limit is used
+   # min: "25%" # accepted
+   # max: "75%" # accepted
+   min: 1000 # Optional, hardware limit is used when unspecified
+   max: 3500 # Optional, hardware limit is used when unspecified
+ cstates:
+   # Configure C-states using either 'maxLatencyUs' or 'names', but not both.
+   names:
+     C1E: false
+     POLL: true
+     C6: false
+     C1: false
+   # maxLatencyUs: 1
+ # cpuScalingPolicy enables dynamic CPU frequency tuning for polling workloads (e.g. DPDK).
+ cpuScalingPolicy:
+   workloadType: "polling-dpdk"
+   samplePeriod: 20ms
+   cooldownPeriod: 60ms
+   targetUsage: 80
+   allowedUsageDifference: 5
+   allowedFrequencyDifference: 10
+   scalePercentage: 100
+   fallbackFreqPercent: 50

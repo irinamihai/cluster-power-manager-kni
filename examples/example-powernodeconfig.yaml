@@ -1,0 +1,21 @@
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerNodeConfig
+metadata:
+  name: shared-config
+  namespace: power-manager
+spec:
+  # The shared PowerProfile to apply to all non-reserved, non-exclusive CPUs on the node.
+  sharedPowerProfile: shared
+  # nodeSelector determines which nodes this config applies to.
+  # If not specified, applies to all nodes running the Power Node Agent.
+  nodeSelector:
+    labelSelector:
+      matchLabels:
+        feature.node.kubernetes.io/power-node: "true" # other labels can be used
+  # reservedCPUs must match the kubelet reservedSystemCPUs configuration.
+  # Each group can optionally have its own PowerProfile.
+  reservedCPUs:
+  - cores:
+    - 0
+    - 1
+    powerProfile: performance
