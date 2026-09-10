@@ -407,3 +407,11 @@ func TestCoreList_ManyByIDs(t *testing.T) {
 	_, err = cpus.ManyByIDs([]uint{6})
 	assert.Error(t, err)
 }
+
+func TestCPUListByIDHandlesIDsOutsideIntRange(t *testing.T) {
+	cpu := &cpuImpl{id: 0}
+	cpus := CPUList{cpu}
+
+	assert.Same(t, CPU(cpu), cpus.ByID(0))
+	assert.Nil(t, cpus.ByID(^uint(0)))
+}

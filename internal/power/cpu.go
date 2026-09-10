@@ -2,6 +2,7 @@ package power
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -246,10 +247,12 @@ func (cpus *CPUList) IDs() []uint {
 	return ids
 }
 func (cpus *CPUList) ByID(id uint) CPU {
-	index := int(id)
 	// first we try index == cpuId
-	if len(*cpus) > index && (*cpus)[index].GetID() == id {
-		return (*cpus)[index]
+	if id <= math.MaxInt && id < uint(len(*cpus)) {
+		index := int(id)
+		if (*cpus)[index].GetID() == id {
+			return (*cpus)[index]
+		}
 	}
 	// if that doesn't work we fall back to looping
 	for _, cpu := range *cpus {
