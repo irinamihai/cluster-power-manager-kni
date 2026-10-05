@@ -387,9 +387,7 @@ func setupIntegrationHost(t *testing.T, numCpus int) Host {
 	t.Cleanup(setupCPUScalingTests(cpuConfigAll))
 	t.Cleanup(setupTopologyTest(cpuTopologyMap))
 
-	originalGetFromLscpu := GetFromLscpu
-	GetFromLscpu = TestGetFromLscpu
-	t.Cleanup(func() { GetFromLscpu = originalGetFromLscpu })
+	t.Cleanup(PinTestHostIdentity())
 
 	instance, err := CreateInstance("host")
 	require.ErrorContainsf(t, err, "intel_uncore_frequency not loaded", "expecting uncore feature error")

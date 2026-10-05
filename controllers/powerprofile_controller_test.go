@@ -1461,10 +1461,14 @@ func TestPowerProfile_Reconcile_FeatureNotSupportedErr(t *testing.T) {
 			},
 		},
 	}
-	setupDummyFiles(1, 1, 1, map[string]string{
+	// the error is expected here: this test wants features reported unsupported.
+	// Only the teardown matters, and dropping it would leave host detection
+	// pinned for every later test in this binary.
+	_, teardown, _ := setupDummyFiles(1, 1, 1, map[string]string{
 		"available_governors": "powersave performance",
 		"epp":                 "performance",
 	})
+	t.Cleanup(teardown)
 	t.Setenv("NODE_NAME", "TestNode")
 	for _, tc := range tcases {
 		r, err := createProfileReconcilerObject(tc.clientObjs)

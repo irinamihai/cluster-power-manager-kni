@@ -2,7 +2,12 @@ resources:
 - manager.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+configurations:
+- image-fields.yaml
 images:
 - name: controller
   newName: ghcr.io/cluster-power-manager/cluster-power-manager-operator
+  newTag: latest
+- name: node-agent
+  newName: ghcr.io/cluster-power-manager/cluster-power-node-agent
   newTag: latest

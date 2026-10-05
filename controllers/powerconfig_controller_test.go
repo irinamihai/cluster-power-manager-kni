@@ -134,6 +134,104 @@ func TestPowerConfig_Reconcile_Creation(t *testing.T) {
 	}
 }
 
+func TestPowerConfigDaemonSet(t *testing.T) {
+	const manifestPath = "../build/manifests/power-node-agent-ds.yaml"
+
+	t.Run("creation", func(t *testing.T) {
+		const overrideImage = "quay.io/openshift-kni/cluster-power-node-agent:5.1.0"
+
+		for _, tc := range []struct {
+			name          string
+			relatedImage  string
+			expectedImage string
+		}{
+			{
+				name:          "embedded image without override",
+				expectedImage: "ghcr.io/cluster-power-manager/cluster-power-node-agent:latest",
+			},
+			{
+				name:          "related image override",
+				relatedImage:  overrideImage,
+				expectedImage: overrideImage,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Setenv(relatedImageNodeAgentEnv, tc.relatedImage)
+				r, err := createConfigReconcilerObject(nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				logger := r.Log
+				if err := r.createDaemonSetIfNotPresent(context.Background(), &powerv1alpha1.PowerConfig{}, manifestPath, &logger); err != nil {
+					t.Fatal(err)
+				}
+
+				daemonSet := &appsv1.DaemonSet{}
+				if err := r.Client.Get(context.Background(), client.ObjectKey{Name: NodeAgentDSName, Namespace: PowerNamespace}, daemonSet); err != nil {
+					t.Fatal(err)
+				}
+				container := findNodeAgentContainer(daemonSet.Spec.Template.Spec.Containers)
+				if container == nil {
+					t.Fatalf("container %q not found", NodeAgentDSName)
+				}
+				assert.Equal(t, tc.expectedImage, container.Image)
+			})
+		}
+	})
+
+	t.Run("upgrade", func(t *testing.T) {
+		const overrideImage = "quay.io/openshift-kni/cluster-power-node-agent:5.2.0"
+		t.Setenv(relatedImageNodeAgentEnv, overrideImage)
+
+		existing, err := createDaemonSetFromManifest(manifestPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := createConfigReconcilerObject([]client.Object{existing})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		logger := r.Log
+		if err := r.createDaemonSetIfNotPresent(context.Background(), &powerv1alpha1.PowerConfig{}, manifestPath, &logger); err != nil {
+			t.Fatal(err)
+		}
+
+		updated := &appsv1.DaemonSet{}
+		if err := r.Client.Get(context.Background(), client.ObjectKey{Name: NodeAgentDSName, Namespace: PowerNamespace}, updated); err != nil {
+			t.Fatal(err)
+		}
+		container := findNodeAgentContainer(updated.Spec.Template.Spec.Containers)
+		if container == nil {
+			t.Fatalf("container %q not found", NodeAgentDSName)
+		}
+		assert.Equal(t, overrideImage, container.Image)
+	})
+
+	t.Run("missing agent container", func(t *testing.T) {
+		const overrideImage = "quay.io/openshift-kni/cluster-power-node-agent:5.2.0"
+		t.Setenv(relatedImageNodeAgentEnv, overrideImage)
+
+		t.Run("new DaemonSet", func(t *testing.T) {
+			_, err := applyNodeAgentImage(&appsv1.DaemonSet{}, overrideImage)
+			assert.ErrorContains(t, err, "container \"power-node-agent\" not found")
+		})
+
+		t.Run("existing DaemonSet", func(t *testing.T) {
+			existing := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{Name: NodeAgentDSName, Namespace: PowerNamespace}}
+			r, err := createConfigReconcilerObject([]client.Object{existing})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			logger := r.Log
+			err = r.createDaemonSetIfNotPresent(context.Background(), &powerv1alpha1.PowerConfig{}, manifestPath, &logger)
+			assert.ErrorContains(t, err, "container \"power-node-agent\" not found")
+		})
+	})
+}
+
 func TestPowerConfig_Reconcile_Deletion(t *testing.T) {
 	tcases := []struct {
 		testCase                string

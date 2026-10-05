@@ -205,6 +205,11 @@ operator:
       limits: 30Mi
       requests: 30Mi
 
+# Image for the node-agent DaemonSet created by the operator
+agent:
+  container:
+    image: ghcr.io/cluster-power-manager/cluster-power-node-agent:latest
+
 # Values for the PowerConfig
 powerconfig:
   name: power-config
@@ -212,13 +217,3 @@ powerconfig:
   nodeselector:
     label: "feature.node.kubernetes.io/power-node"
     value: 'true'
-
-# Values for the Shared PowerProfile
-sharedprofile:
-  name: shared
-  namespace: power-manager
-  spec:
-    max: 1000
-    min: 1000
-    epp: "power"
-    governor: "powersave"

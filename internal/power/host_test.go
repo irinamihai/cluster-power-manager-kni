@@ -1,13 +1,18 @@
 package power
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -39,18 +44,8 @@ func (m *hostMock) SetName(name string) {
 func (m *hostMock) GetName() string {
 	return m.Called().String(0)
 }
-func (m *hostMock) SetArchitecture() error {
-	m.Called("x86_64")
-	return nil
-}
-
 func (m *hostMock) GetArchitecture() string {
 	return m.Called().String(0)
-}
-
-func (m *hostMock) SetVendorID() error {
-	m.Called("GenuineIntel")
-	return nil
 }
 
 func (m *hostMock) GetVendorID() string {
@@ -124,9 +119,7 @@ func TestHost_initHost(t *testing.T) {
 	origGetAllCores := discoverTopology
 	defer func() { discoverTopology = origGetAllCores }()
 
-	originalGetFromLscpu := GetFromLscpu
-	defer func() { GetFromLscpu = originalGetFromLscpu }()
-	GetFromLscpu = TestGetFromLscpu
+	defer PinTestHostIdentity()()
 
 	const hostName = "host"
 
@@ -157,6 +150,264 @@ func TestHost_initHost(t *testing.T) {
 	assert.Equal(t, hostObj.topology, topObj)
 	assert.ElementsMatch(t, hostObj.reservedPool.(*reservedPoolType).cpus, mockedCores)
 	assert.NotNil(t, hostObj.sharedPool)
+	// both come from PinTestHostIdentity, not the machine running the test;
+	// initHost fails outright if either lookup does
+	assert.Equal(t, "x86_64", hostObj.GetArchitecture())
+	assert.Equal(t, "GenuineIntel", hostObj.GetVendorID())
+}
+
+// writeCPUInfo redirects cpuinfo reads at a fixture holding content, for the
+// duration of the test.
+func writeCPUInfo(t *testing.T, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "cpuinfo")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	useCPUInfoPath(t, path)
+}
+
+// useCPUInfoPath redirects cpuinfo reads at path, which need not exist.
+func useCPUInfoPath(t *testing.T, path string) {
+	t.Helper()
+	original := readCPUInfoField
+	readCPUInfoField = func(key string) (string, bool, error) {
+		return readCPUInfoFieldFrom(path, key)
+	}
+	t.Cleanup(func() { readCPUInfoField = original })
+}
+
+const x86AMDCPUInfo = `processor	: 0
+vendor_id	: AuthenticAMD
+cpu family	: 25
+model name	: AMD EPYC 9J14 96-Core Processor
+
+processor	: 1
+vendor_id	: AuthenticAMD
+`
+
+const x86IntelCPUInfo = `processor	: 0
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 143
+model name	: Intel(R) Xeon(R) Platinum 8480+
+
+processor	: 1
+vendor_id	: GenuineIntel
+`
+
+const armAmpereCPUInfo = `processor	: 0
+BogoMIPS	: 50.00
+Features	: fp asimd evtstrm aes
+CPU implementer	: 0xc0
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0xac3
+CPU revision	: 1
+`
+
+func TestReadCPUInfoField(t *testing.T) {
+	t.Run("returns the value for a key", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, cpuInfo, wantVendor, wantModel string
+		}{
+			{"AMD", x86AMDCPUInfo, "AuthenticAMD", "AMD EPYC 9J14 96-Core Processor"},
+			{"Intel", x86IntelCPUInfo, "GenuineIntel", "Intel(R) Xeon(R) Platinum 8480+"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				writeCPUInfo(t, tc.cpuInfo)
+
+				v, found, err := readCPUInfoField("vendor_id")
+				assert.NoError(t, err)
+				assert.True(t, found)
+				assert.Equal(t, tc.wantVendor, v)
+
+				v, found, err = readCPUInfoField("model name")
+				assert.NoError(t, err)
+				assert.True(t, found)
+				assert.Equal(t, tc.wantModel, v)
+			})
+		}
+	})
+
+	t.Run("returns the first match when a key repeats", func(t *testing.T) {
+		// distinct values, or a last-match-wins implementation would be
+		// indistinguishable from a correct one
+		writeCPUInfo(t, "vendor_id\t: FirstVendor\nvendor_id\t: SecondVendor\n")
+
+		v, found, err := readCPUInfoField("vendor_id")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "FirstVendor", v)
+	})
+
+	t.Run("matches keys exactly, not by prefix", func(t *testing.T) {
+		// the longer key comes first, so a prefix match for "model" would
+		// wrongly return the "model name" value. Real /proc/cpuinfo orders
+		// these the other way round, which a prefix match survives.
+		writeCPUInfo(t, "model name\t: Some CPU\nmodel\t\t: 143\n")
+
+		v, found, err := readCPUInfoField("model")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "143", v)
+	})
+
+	t.Run("splits on the first colon only", func(t *testing.T) {
+		writeCPUInfo(t, "model name\t: Some CPU @ 2.60GHz: rev B\n")
+
+		v, found, err := readCPUInfoField("model name")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "Some CPU @ 2.60GHz: rev B", v)
+	})
+
+	t.Run("handles a key with no space before the colon", func(t *testing.T) {
+		// the arm fixture writes "CPU architecture: 8", unlike the tab-padded
+		// keys around it
+		writeCPUInfo(t, armAmpereCPUInfo)
+
+		v, found, err := readCPUInfoField("CPU architecture")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.Equal(t, "8", v)
+	})
+
+	// setVendorID tells "no such field" apart from "cannot read the host" by
+	// the found flag alone, so an absent key must not surface as an error.
+	t.Run("missing key reports not found, without an error", func(t *testing.T) {
+		writeCPUInfo(t, x86AMDCPUInfo)
+
+		v, found, err := readCPUInfoField("CPU implementer")
+		assert.NoError(t, err)
+		assert.False(t, found)
+		assert.Empty(t, v)
+	})
+
+	t.Run("unreadable file errors and is not merely not found", func(t *testing.T) {
+		useCPUInfoPath(t, filepath.Join(t.TempDir(), "absent"))
+
+		_, found, err := readCPUInfoField("vendor_id")
+		assert.Error(t, err)
+		assert.False(t, found)
+	})
+}
+
+func TestHostImpl_setVendorID(t *testing.T) {
+	t.Run("x86 vendor passes through verbatim, as lscpu does", func(t *testing.T) {
+		// deliberately the raw vendor strings, not normalized to AMD/Intel
+		for _, tc := range []struct {
+			name, cpuInfo, want string
+		}{
+			{"AMD", x86AMDCPUInfo, "AuthenticAMD"},
+			{"Intel", x86IntelCPUInfo, "GenuineIntel"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				writeCPUInfo(t, tc.cpuInfo)
+
+				host := &hostImpl{architecture: "x86_64"}
+				assert.NoError(t, host.setVendorID())
+				assert.Equal(t, tc.want, host.GetVendorID())
+			})
+		}
+	})
+
+	t.Run("arm implementer is decoded to a name", func(t *testing.T) {
+		writeCPUInfo(t, armAmpereCPUInfo)
+
+		host := &hostImpl{architecture: "aarch64"}
+		assert.NoError(t, host.setVendorID())
+		assert.Equal(t, "Ampere", host.GetVendorID())
+	})
+
+	t.Run("unknown arm implementer falls back rather than failing", func(t *testing.T) {
+		writeCPUInfo(t, "CPU implementer\t: 0x2a\n")
+
+		host := &hostImpl{architecture: "aarch64"}
+		assert.NoError(t, host.setVendorID())
+		assert.Equal(t, "unknown (0x2a)", host.GetVendorID())
+	})
+
+	t.Run("malformed arm implementer errors", func(t *testing.T) {
+		writeCPUInfo(t, "CPU implementer\t: notahexnumber\n")
+
+		host := &hostImpl{architecture: "aarch64"}
+		assert.ErrorContains(t, host.setVendorID(), "malformed CPU implementer")
+	})
+
+	// An absent vendor field is not a failure: the host is readable, its vendor
+	// simply is not identifiable. Only a read failure is an error, so initHost
+	// can treat any error from setVendorID as fatal.
+	t.Run("missing field reports unknown and succeeds", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, arch, cpuInfo string
+		}{
+			// an aarch64 cpuinfo has no vendor_id, and vice versa
+			{"x86 without vendor_id", "x86_64", armAmpereCPUInfo},
+			{"arm without CPU implementer", "aarch64", x86AMDCPUInfo},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				writeCPUInfo(t, tc.cpuInfo)
+
+				host := &hostImpl{architecture: tc.arch}
+				assert.NoError(t, host.setVendorID())
+				assert.Equal(t, "unknown", host.GetVendorID())
+			})
+		}
+	})
+
+	t.Run("unreadable cpuinfo errors", func(t *testing.T) {
+		for _, arch := range []string{"x86_64", "aarch64"} {
+			t.Run(arch, func(t *testing.T) {
+				useCPUInfoPath(t, filepath.Join(t.TempDir(), "absent"))
+
+				host := &hostImpl{architecture: arch}
+				assert.Error(t, host.setVendorID())
+				assert.Empty(t, host.GetVendorID())
+			})
+		}
+	})
+}
+
+// The Utsname here is built by the test, never read from the machine running
+// it: uname reports "arm64" on Darwin where Linux reports "aarch64", so any
+// assertion against the real host is only true on some hosts.
+func TestMachineName(t *testing.T) {
+	for _, want := range []string{"x86_64", "aarch64"} {
+		t.Run(want, func(t *testing.T) {
+			var uts unix.Utsname
+			// leave the remaining bytes NUL, as the kernel does
+			copy(uts.Machine[:], want)
+
+			assert.Equal(t, want, machineName(&uts))
+		})
+	}
+}
+
+func TestHostImpl_setArchitecture(t *testing.T) {
+	t.Run("stores the reported architecture", func(t *testing.T) {
+		stubHostArchitecture(t, "aarch64", nil)
+
+		host := &hostImpl{}
+		require.NoError(t, host.setArchitecture())
+		assert.Equal(t, "aarch64", host.GetArchitecture())
+	})
+
+	t.Run("wraps a lookup failure and stores nothing", func(t *testing.T) {
+		stubHostArchitecture(t, "", errors.New("uname exploded"))
+
+		host := &hostImpl{}
+		err := host.setArchitecture()
+		assert.ErrorContains(t, err, "uname exploded")
+		assert.Empty(t, host.GetArchitecture())
+	})
+}
+
+// stubHostArchitecture makes architecture detection return arch and err for the
+// duration of the test, so nothing reads the machine running it.
+func stubHostArchitecture(t *testing.T, arch string, err error) {
+	t.Helper()
+	original := getHostArchitecture
+	getHostArchitecture = func() (string, error) { return arch, err }
+	t.Cleanup(func() { getHostArchitecture = original })
 }
 
 func TestHostImpl_AddExclusivePool(t *testing.T) {

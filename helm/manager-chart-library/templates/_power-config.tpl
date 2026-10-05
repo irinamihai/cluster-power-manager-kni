@@ -7,9 +7,5 @@ metadata:
 spec:
   powerNodeSelector:
     {{ .Values.powerconfig.nodeselector.label }}: "{{  .Values.powerconfig.nodeselector.value  }}"
-  powerProfiles:
-  - "performance"
-  - "balance-performance"
-  - "balance-power"
 
 {{- end -}}

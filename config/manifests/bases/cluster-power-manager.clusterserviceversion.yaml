@@ -150,4 +150,7 @@ spec:
   provider:
     name: Red Hat
     url: https://github.com/cluster-power-manager/cluster-power-manager
+  relatedImages:
+  - image: ghcr.io/cluster-power-manager/cluster-power-node-agent:latest
+    name: node-agent
   version: 0.0.1

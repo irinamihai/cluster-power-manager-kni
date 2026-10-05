@@ -191,13 +191,34 @@ The Cluster Power Manager requires two container images: the **Power Operator** 
 ### Recommended image workflow
 
 1. Build and push the operator and node-agent images using the single-architecture or multi-architecture targets
-   documented below. The image-building targets depend on `update-agent-image`, which updates
-   `build/manifests/power-node-agent-ds.yaml`, the node-agent manifest embedded in the operator image, before the
-   images are built.
-2. Install the CRDs and deploy the manager image using the commands in
+   documented below, selecting the registry and image tag you want to use.
+2. Install the CRDs and deploy both images using the same image settings and the commands in
    [Deploying the Cluster Power Manager using kustomize](#deploying-the-cluster-power-manager-using-kustomize).
-   The `deploy` target derives the manager image from `IMAGE_REGISTRY` and `VERSION` and applies it through
-   Kustomize. It does not run `update-agent-image`.
+   The `deploy` target configures the manager image and passes the node-agent image to the manager through
+   `RELATED_IMAGE_NODE_AGENT`. The PowerConfig controller uses this value when creating or updating the node-agent
+   DaemonSet. Image selection happens at deployment time.
+
+The `deploy`, `bundle`, and `helm-install` targets use these image settings:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `IMAGE_REGISTRY` | `ghcr.io/cluster-power-manager` | Registry prefix for both images |
+| `VERSION` | `latest` | Tag for both images |
+| `IMG` | `$(IMAGE_REGISTRY)/cluster-power-manager-operator:$(VERSION)` | Full manager image reference |
+| `IMG_AGENT` | `$(IMAGE_REGISTRY)/cluster-power-node-agent:$(VERSION)` | Full node-agent image reference |
+
+Set `IMAGE_REGISTRY` and `VERSION` on each Make command to select both images together. To select images independently,
+override `IMG` and `IMG_AGENT` directly:
+
+```console
+make install deploy \
+  IMG=ghcr.io/<user/org>/cluster-power-manager-operator:<operator-tag> \
+  IMG_AGENT=ghcr.io/<user/org>/cluster-power-node-agent:<agent-tag>
+```
+
+Changing `IMG_AGENT` and redeploying updates the image in an existing node-agent DaemonSet. If
+`RELATED_IMAGE_NODE_AGENT` is absent or empty, a newly created DaemonSet uses the image from the embedded manifest,
+`ghcr.io/cluster-power-manager/cluster-power-node-agent:latest`. An existing DaemonSet keeps its current image in that case.
 
 ### Building Single-Architecture Images
 
@@ -405,40 +426,65 @@ make install deploy
 
 ### Deploying the Cluster Power Manager using Helm
 
-The Cluster Power Manager includes a helm chart for the latest releases, allowing the user to easily deploy
-everything that is needed for the overarching operator and the node agent to run. The following versions are
-supported with helm charts:
+Use the local Helm charts to deploy the Cluster Power Manager on vanilla Kubernetes. Install
+[Helm](https://helm.sh/docs/intro/install/) and ensure cert-manager is ready as described in
+[Prerequisites](#prerequisites). The `helm-install` target rejects `OCP=true`.
 
-- TODO
+The charts deploy:
 
-When set up using the provided helm charts, the following will be deployed:
-
+- The current CRDs
 - The power-manager namespace
 - The RBAC rules for the operator and node agent
 - The operator deployment itself
 - The operator's power config
-- A shared power profile
+- A cert-manager Issuer and serving Certificate, the webhook Service, and validating webhook registration
 
-To change any of the values the above are deployed with, edit the values.yaml file of the relevant helm chart.
+cert-manager creates the TLS Secret, which the chart mounts into the manager for its webhook server.
+It also injects the certificate authority into the validating webhook configuration. Kubernetes then sends
+PowerNodeConfig, PowerProfile, and Uncore admission requests to the manager for validation.
+Create shared and unshared PowerProfiles separately to suit your nodes and workloads. The chart does not create
+PowerProfiles.
 
-To deploy the Cluster Power Manager using Helm, you must have Helm installed. For more information on installing
-Helm, see the installation guide [here](https://helm.sh/docs/intro/install/).
+Install or update the operator using the default GHCR images:
 
-To install the latest version, use the following command:
+```console
+HELM_NAMESPACE=default make helm-install
+```
 
-`make helm-install`
+Helm stores both release records in the existing `default` namespace. The operator chart creates `power-manager`
+for its workloads. Use the same `HELM_NAMESPACE` for subsequent installation, upgrade, and uninstall commands.
 
-To uninstall the latest version, use the following command:
+To use images published to another GHCR namespace or with another tag:
 
-`make helm-uninstall`
+```console
+HELM_NAMESPACE=default make helm-install \
+  IMAGE_REGISTRY=ghcr.io/<user/org> \
+  VERSION=<tag>
+```
 
-You can use the HELM_CHART and OCP parameters to deploy an older or Openshift specific version of the Cluster Power Manager:
+The target uses `helm upgrade --install` for both releases, so rerunning it updates an existing installation.
+It passes `IMG` to the chart's `operator.container.image` value and `IMG_AGENT` to `agent.container.image`, which
+sets `RELATED_IMAGE_NODE_AGENT` in the manager. Override these Make variables to select images independently.
+Other chart settings are defined in [values.yaml](./helm/cluster-power-manager/values.yaml).
 
-`HELM_CHART=v2.3.1 OCP=true make helm-install`
-`HELM_CHART=v2.2.0 make helm-install`
-`HELM_CHART=v2.1.0 make helm-install`
+`HELM_CHART` defaults to `v2.5.0` and controls the chart version metadata and operator release name. The target always
+uses the local chart source. Select the operator and node-agent image versions with `VERSION`, `IMG`, or `IMG_AGENT`.
 
-Please note when installing older versions that certain features listed in this README may not be supported.
+Verify the serving certificate and both workloads:
+
+```console
+kubectl -n power-manager wait --for=condition=Ready certificate/controller-manager-serving-cert --timeout=5m
+kubectl -n power-manager rollout status deploy/controller-manager --timeout=5m
+kubectl get validatingwebhookconfiguration controller-manager-validating-webhook-configuration
+kubectl -n power-manager wait --for=create ds/power-node-agent --timeout=5m
+kubectl -n power-manager rollout status ds/power-node-agent --timeout=5m
+```
+
+Uninstall both Helm releases, including the CRDs and their custom resources:
+
+```console
+HELM_NAMESPACE=default make helm-uninstall
+```
 
 ### OLM Bundle (OpenShift only)
 
@@ -462,6 +508,12 @@ is generated on demand by `make bundle`. All OLM-related Makefile targets requir
 
     > `VERSION` is the image tag (e.g. `v1.0.0`). `BUNDLE_VERSION` is the OLM semver
     > (e.g. `1.0.0`, no `v` prefix). They are independent.
+
+    Bundle generation configures both images from `IMG` and `IMG_AGENT`. Operator SDK embeds the rendered manager
+    Deployment into the CSV's `spec.install.spec.deployments`, including its `RELATED_IMAGE_NODE_AGENT` environment
+    variable. The selected node-agent image is also listed in `spec.relatedImages` for image discovery and mirroring.
+    OLM creates the manager Deployment from that CSV, and the manager uses the environment variable for the node-agent
+    DaemonSet.
 
 3. **Build and push the bundle image:**
 

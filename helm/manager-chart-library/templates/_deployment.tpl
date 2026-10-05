@@ -29,6 +29,13 @@ spec:
           capabilities:
             drop: ["ALL"]
         name: {{ .Values.operator.container.name }}
+        env:
+        - name: RELATED_IMAGE_NODE_AGENT
+          value: {{ .Values.agent.container.image | quote }}
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
         resources:
           limits:
             cpu: {{ .Values.operator.container.cpu.limits }}
@@ -37,12 +44,19 @@ spec:
             cpu: {{ .Values.operator.container.cpu.requests }}
             memory: {{ .Values.operator.container.memory.requests }}
         volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
         - mountPath: /sys/fs
           name: cgroup
           mountPropagation: HostToContainer
           readOnly: true
       terminationGracePeriodSeconds: 10
       volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: webhook-server-cert
       - name: cgroup
         hostPath:
           path: /sys/fs

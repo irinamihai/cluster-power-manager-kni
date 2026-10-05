@@ -601,12 +601,11 @@ func setupDummyFiles(cores int, packages int, diesPerPackage int, cpufiles map[s
 		}
 	}
 
-	originalGetFromLscpu := power.GetFromLscpu
-	power.GetFromLscpu = power.TestGetFromLscpu
+	restoreHostIdentity := power.PinTestHostIdentity()
 	host, err := power.CreateInstanceWithConf("test-node", power.LibConfig{CPUPath: "testing/cpus", ModulePath: "testing/proc.modules", Cores: uint(cores)})
 	return host, func() {
 		os.RemoveAll(strings.Split(path, "/")[0])
-		power.GetFromLscpu = originalGetFromLscpu
+		restoreHostIdentity()
 	}, err
 }
 

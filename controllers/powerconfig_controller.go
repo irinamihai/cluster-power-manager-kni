@@ -39,8 +39,9 @@ import (
 )
 
 const (
-	ExtendedResourcePrefix = "power.cluster-power-manager.github.io/"
-	NodeAgentDSName        = "power-node-agent"
+	ExtendedResourcePrefix   = "power.cluster-power-manager.github.io/"
+	NodeAgentDSName          = "power-node-agent"
+	relatedImageNodeAgentEnv = "RELATED_IMAGE_NODE_AGENT"
 
 	// FieldOwnerPowerConfigController is the SSA field manager for NodeInfo in PowerNodeState.
 	FieldOwnerPowerConfigController = "powerconfig-controller"
@@ -284,6 +285,9 @@ func (r *PowerConfigReconciler) createDaemonSetIfNotPresent(c context.Context, p
 				logger.Error(err, "error creating the daemonSet")
 				return err
 			}
+			if _, err := applyNodeAgentImage(daemonSet, os.Getenv(relatedImageNodeAgentEnv)); err != nil {
+				return err
+			}
 			if len(powerConfig.Spec.PowerNodeSelector) != 0 {
 				daemonSet.Spec.Template.Spec.NodeSelector = powerConfig.Spec.PowerNodeSelector
 			}
@@ -295,12 +299,20 @@ func (r *PowerConfigReconciler) createDaemonSetIfNotPresent(c context.Context, p
 			logger.V(5).Info("new power node-agent daemonSet created")
 			return nil
 		}
+		return err
 	}
 
-	// If the daemonSet already exists and is different than the selected nodes, update it
+	// Update the existing DaemonSet when its image or node selector changes.
+	changed, err := applyNodeAgentImage(daemonSet, os.Getenv(relatedImageNodeAgentEnv))
+	if err != nil {
+		return err
+	}
 	if !reflect.DeepEqual(daemonSet.Spec.Template.Spec.NodeSelector, powerConfig.Spec.PowerNodeSelector) {
-		logger.V(5).Info("updating the existing daemonSet")
 		daemonSet.Spec.Template.Spec.NodeSelector = powerConfig.Spec.PowerNodeSelector
+		changed = true
+	}
+	if changed {
+		logger.V(5).Info("updating the existing daemonSet")
 		err = r.Client.Update(c, daemonSet)
 		if err != nil {
 			logger.Error(err, "error updating the power node-agent daemonSet")
@@ -309,6 +321,31 @@ func (r *PowerConfigReconciler) createDaemonSetIfNotPresent(c context.Context, p
 	}
 
 	return nil
+}
+
+func findNodeAgentContainer(containers []corev1.Container) *corev1.Container {
+	for i := range containers {
+		if containers[i].Name == NodeAgentDSName {
+			return &containers[i]
+		}
+	}
+	return nil
+}
+
+func applyNodeAgentImage(ds *appsv1.DaemonSet, image string) (imageChanged bool, err error) {
+	if image == "" {
+		return false, nil
+	}
+
+	container := findNodeAgentContainer(ds.Spec.Template.Spec.Containers)
+	if container == nil {
+		return false, fmt.Errorf("container %q not found in node-agent DaemonSet", NodeAgentDSName)
+	}
+	if container.Image == image {
+		return false, nil
+	}
+	container.Image = image
+	return true, nil
 }
 
 func createDaemonSetFromManifest(path string) (*appsv1.DaemonSet, error) {

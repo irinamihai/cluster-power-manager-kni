@@ -194,11 +194,11 @@ verify-build: gofmt test race coverage tidy clean verify-test
 	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) GO111MODULE=on go build -a -o build/bin/nodeagent build/nodeagent/main.go	
 
 # Build the Manager and Node Agent images
-images: update-agent-image generate manifests
+images: generate manifests
 	 $(IMGTOOL) build -f build/Dockerfile --platform $(PLATFORM) -t ${IMG} .
 	 $(IMGTOOL) build -f build/Dockerfile.nodeagent --platform $(PLATFORM) -t ${IMG_AGENT} .
 
-images-ocp: update-agent-image generate manifests
+images-ocp: generate manifests
 	 echo "Building images for OCP $(IMG) and $(IMG_AGENT)"
 	 $(IMGTOOL) build --build-arg="BASE_IMAGE=$(OCP_IMAGE)" -f build/Dockerfile --platform $(PLATFORM) -t ${IMG} .
 	 $(IMGTOOL) build --build-arg="BASE_IMAGE=$(OCP_IMAGE)" -f build/Dockerfile.nodeagent --platform $(PLATFORM) -t ${IMG_AGENT} .
@@ -221,17 +221,20 @@ run-agent: generate fmt vet manifests
 
 .PHONY: helm-install helm-uninstall 
 helm-install:
-ifeq (true, $(OCP))
-	$(eval HELM_FLAG:=--set ocp=true)
-	$(eval OCP_SUFFIX:=_ocp-$(OCP_VERSION))
-endif
+	@if [ "$(OCP)" = "true" ]; then \
+		echo "helm-install supports vanilla Kubernetes only; omit OCP=true"; \
+		exit 1; \
+	fi
 	sed -i 's/^version:.*$$/version: $(HELM_VERSION)/' helm/cluster-power-manager/Chart.yaml 
 	sed -i 's/^appVersion:.*$$/appVersion: \"$(HELM_CHART)\"/' helm/cluster-power-manager/Chart.yaml
 	sed -i 's/^version:.*$$/version: $(HELM_VERSION)/' helm/crds/Chart.yaml 
 	sed -i 's/^appVersion:.*$$/appVersion: \"$(HELM_CHART)\"/' helm/crds/Chart.yaml 
-	helm install cluster-power-manager-crds ./helm/crds
+	helm upgrade --install cluster-power-manager-crds ./helm/crds
 	helm dependency update ./helm/cluster-power-manager
-	helm install cluster-power-manager-$(HELM_CHART) ./helm/cluster-power-manager --set operator.container.image=$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(VERSION) $(HELM_FLAG)
+	helm upgrade --install cluster-power-manager-$(HELM_CHART) ./helm/cluster-power-manager \
+		--wait \
+		--set-string operator.container.image="$(IMG)" \
+		--set-string agent.container.image="$(IMG_AGENT)"
 
 helm-uninstall:
 	sed -i 's/^version:.*$$/version: $(HELM_VERSION)/' helm/cluster-power-manager/Chart.yaml 
@@ -253,7 +256,9 @@ uninstall: manifests kustomize
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 # Set OCP=true to deploy with OpenShift-specific resources (SCC, service-ca).
 deploy: manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/manager && $(KUSTOMIZE) edit set image \
+		controller=${IMG} \
+		node-agent=${IMG_AGENT}
 ifeq (true, $(OCP))
 	$(KUSTOMIZE) build config/ocp | kubectl apply -f -
 else
@@ -316,7 +321,7 @@ build-agent-ocp:
 .PHONY: build-push-multiarch
 # Build and push multi-architecture images for both operator and agent
 # Set OCP=true for OpenShift builds (default: false)
-build-push-multiarch: update-agent-image generate manifests
+build-push-multiarch: generate manifests
 ifeq (true, $(OCP))
 	@echo "Building and pushing multi-arch OCP images for platforms: $(PLATFORMS)"
 else
@@ -394,11 +399,14 @@ endif
 # Generate bundle manifests and metadata, then validate generated files.
 # OLM bundle targets are OCP-specific and require OCP=true.
 ifeq (true, $(OCP))
-bundle: update-agent-image manifests kustomize operator-sdk
+bundle: manifests kustomize operator-sdk
 # directory used to get image name for bundle
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS)
+	cd config/manager && $(KUSTOMIZE) edit set image \
+		controller=${IMG} \
+		node-agent=${IMG_AGENT}
+	$(KUSTOMIZE) build config/manifests | \
+		$(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 else
 bundle:
@@ -516,10 +524,6 @@ clean:
 
 gofmt:
 	gofmt -w .
-
-.PHONY: update-agent-image
-update-agent-image:
-	sed -i 's|image: .*|image: $(IMG_AGENT)|' build/manifests/power-node-agent-ds.yaml
 
 # markdownlint rules, following: https://github.com/openshift/enhancements/blob/master/Makefile
 .PHONY: markdownlint-image

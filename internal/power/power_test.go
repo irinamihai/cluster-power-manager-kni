@@ -106,9 +106,7 @@ func TestCreateInstance(t *testing.T) {
 	featureList = FeatureSet{}
 	defer func() { featureList = origFeatureList }()
 
-	originalGetFromLscpu := GetFromLscpu
-	defer func() { GetFromLscpu = originalGetFromLscpu }()
-	GetFromLscpu = TestGetFromLscpu
+	defer PinTestHostIdentity()()
 
 	tmpDir := t.TempDir()
 	path := fmt.Sprintf("%s/testing/cpus", tmpDir)

@@ -1,0 +1,35 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.operator.name }}-selfsigned-issuer
+  namespace: {{ .Values.operator.namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.operator.name }}-serving-cert
+  namespace: {{ .Values.operator.namespace }}
+spec:
+  dnsNames:
+  - {{ .Values.operator.name }}-webhook-service.{{ .Values.operator.namespace }}.svc
+  - {{ .Values.operator.name }}-webhook-service.{{ .Values.operator.namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: {{ .Values.operator.name }}-selfsigned-issuer
+  privateKey:
+    rotationPolicy: Always
+  secretName: webhook-server-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.operator.name }}-webhook-service
+  namespace: {{ .Values.operator.namespace }}
+spec:
+  ports:
+  - port: 443
+    targetPort: webhook-server
+  selector:
+    control-plane: {{ .Values.operator.labels.controlplane }}

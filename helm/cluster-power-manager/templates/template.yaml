@@ -23,10 +23,3 @@
 {{- include "manager-chart-library.deployment" . }}
 ---
 {{- include "manager-chart-library.powerconfig" . }}
----
-{{- if  eq (semver "2.2.0" | (semver .Chart.Version).Compare) 1}}
-{{- include "manager-chart-library.new-shared-profile" . }}
-{{- else }}
-{{- include "manager-chart-library.shared-profile" . }}
-{{- end }}
-# above checks the version to decide which template to use

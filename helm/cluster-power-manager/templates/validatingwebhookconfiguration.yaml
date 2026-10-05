@@ -1,0 +1,68 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ .Values.operator.name }}-validating-webhook-configuration
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Values.operator.namespace }}/{{ .Values.operator.name }}-serving-cert
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ .Values.operator.name }}-webhook-service
+      namespace: {{ .Values.operator.namespace }}
+      path: /validate-power-cluster-power-manager-github-io-v1alpha1-powernodeconfig
+  failurePolicy: Fail
+  name: vpowernodeconfig.kb.io
+  rules:
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - powernodeconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ .Values.operator.name }}-webhook-service
+      namespace: {{ .Values.operator.namespace }}
+      path: /validate-power-cluster-power-manager-github-io-v1alpha1-powerprofile
+  failurePolicy: Fail
+  name: vpowerprofile.kb.io
+  rules:
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - powerprofiles
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ .Values.operator.name }}-webhook-service
+      namespace: {{ .Values.operator.namespace }}
+      path: /validate-power-cluster-power-manager-github-io-v1alpha1-uncore
+  failurePolicy: Fail
+  name: vuncore.kb.io
+  rules:
+  - apiGroups:
+    - power.cluster-power-manager.github.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - uncores
+  sideEffects: None

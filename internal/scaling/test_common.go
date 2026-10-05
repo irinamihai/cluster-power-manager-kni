@@ -70,20 +70,20 @@ func setupScalingTestFiles(cores int, cpufiles map[string]string) (power.Host, f
 	}
 
 	// Create power library instance with custom CPU path
-	originalGetFromLscpu := power.GetFromLscpu
-	power.GetFromLscpu = power.TestGetFromLscpu
+	restoreHostIdentity := power.PinTestHostIdentity()
 	host, err := power.CreateInstanceWithConf("test-node", power.LibConfig{
 		CPUPath:    "testing/cpus",
 		ModulePath: "testing/proc.modules",
 		Cores:      uint(cores),
 	})
 	if host == nil {
+		restoreHostIdentity()
 		return nil, nil, err
 	}
 
 	return host, func() {
 		os.RemoveAll(strings.Split(path, "/")[0])
-		power.GetFromLscpu = originalGetFromLscpu
+		restoreHostIdentity()
 	}, nil
 }
 

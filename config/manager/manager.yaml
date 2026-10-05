@@ -43,6 +43,9 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           name: manager
+          env:
+            - name: RELATED_IMAGE_NODE_AGENT
+              value: node-agent:latest
           resources:
             limits:
               cpu: 100m

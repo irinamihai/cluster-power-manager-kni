@@ -79,16 +79,6 @@ metadata:
   name: {{ .Values.operatorclusterrole.name }}
 rules:
 {{ toYaml .Values.operatorclusterrole.rules | indent 0 }}
-{{- if .Values.ocp }}
-- apiGroups:
-  - security.openshift.io
-  resourceNames:
-  - privileged
-  resources:
-  - securitycontextconstraints
-  verbs:
-  - use
-{{- end -}}
 
 {{- end -}}
 
@@ -115,16 +105,6 @@ metadata:
   name: {{ .Values.agentclusterrole.name }}
 rules:
 {{ toYaml .Values.agentclusterrole.rules | indent 0 }}
-{{- if .Values.ocp }}
-- apiGroups:
-  - security.openshift.io
-  resourceNames:
-  - privileged
-  resources:
-  - securitycontextconstraints
-  verbs:
-  - use
-{{- end -}}
 
 {{- end -}}
 

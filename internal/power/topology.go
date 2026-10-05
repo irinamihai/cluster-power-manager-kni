@@ -180,6 +180,8 @@ func (c *cpuPackage) addCPU(cpuID uint) (CPU, error) {
 		if err != nil {
 			return nil, err
 		}
+	default:
+		return nil, fmt.Errorf("unsupported CPU architecture %q", architecture)
 	}
 	c.cpus.add(cpu)
 	return cpu, nil
