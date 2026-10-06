@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=scratch
-ARG BUILDER_IMAGE=quay.io/projectquay/golang:1.24
+ARG BUILDER_IMAGE=quay.io/projectquay/golang:1.26
 
 # Build the manager binary
 FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder

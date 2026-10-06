@@ -1,5 +1,5 @@
-ARG BASE_IMAGE=registry.fedoraproject.org/fedora-minimal:42
-ARG BUILDER_IMAGE=quay.io/projectquay/golang:1.24
+ARG BASE_IMAGE=scratch
+ARG BUILDER_IMAGE=quay.io/projectquay/golang:1.26
 
 # Build the node agent binary
 FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder
@@ -7,7 +7,7 @@ ARG TARGETOS \
     TARGETARCH
 
 # Go toolchain settings, consumed directly by the go command. The defaults
-# produce a static binary suitable for the default fedora-minimal BASE_IMAGE.
+# produce a static binary suitable for the default scratch BASE_IMAGE.
 # Overriding CGO_ENABLED=1 yields a dynamically linked binary and requires a
 # BASE_IMAGE that provides a dynamic loader and the needed shared libraries.
 ARG CGO_ENABLED=0
