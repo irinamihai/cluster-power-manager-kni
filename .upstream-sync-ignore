@@ -3,6 +3,7 @@
 
 # GitHub Actions CI will be replaced by downstream Prow jobs.
 .github/workflows/ci.yaml
+.github/workflows/bundle-check.yaml
 
 # Downstream sync and repository governance files.
 .upstream-sync-ignore
