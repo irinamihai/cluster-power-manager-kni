@@ -1,0 +1,20 @@
+---
+# The InstallPlan is approved manually. Approve it yourself, or let TALM/CGU
+# approve it while enforcing the corresponding policy.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cluster-power-manager
+  namespace: power-manager
+  annotations:
+    ran.openshift.io/ztp-deploy-wave: "2"
+spec:
+  # Use the channel that exists in your catalog.
+  channel: dev-preview-stable
+  name: cluster-power-manager
+  # CatalogSource name. Change it to match the catalog in your environment.
+  source: redhat-operators-disconnected
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Manual
+status:
+  state: AtLatestKnown

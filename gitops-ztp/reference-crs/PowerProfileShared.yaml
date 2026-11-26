@@ -1,0 +1,20 @@
+---
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerProfile
+metadata:
+  name: shared
+  namespace: power-manager
+  annotations:
+    ran.openshift.io/ztp-deploy-wave: "5"
+spec:
+  shared: true
+  # Placeholder values, documented here for reference; they are never applied.
+  nodeSelector:
+    labelSelector:
+      matchLabels:
+        key: value
+  pstates:
+    min: 1000
+    max: 1000
+    epp: "power"
+    governor: "powersave"

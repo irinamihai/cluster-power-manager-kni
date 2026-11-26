@@ -1,0 +1,30 @@
+---
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerProfile
+metadata:
+  name: performance
+  namespace: power-manager
+  annotations:
+    ran.openshift.io/ztp-deploy-wave: "5"
+spec:
+  # Placeholder values, documented here for reference; they are never applied.
+  # The patch in cpm.yaml replaces the whole nodeSelector with the per-class
+  # value from cpm-hardware-types-configmap.
+  nodeSelector:
+    labelSelector:
+      matchLabels:
+        key: value
+  pstates:
+    min: 3000
+    max: 3500
+    epp: "performance"
+    governor: "performance"
+  # Example values, documented here for reference; they are never applied. The
+  # patch in cpm.yaml replaces the whole map with the per-class value from
+  # cpm-hardware-types-configmap.
+  cstates:
+    names:
+      C1: false
+      C1E: false
+      C6: false
+      POLL: true

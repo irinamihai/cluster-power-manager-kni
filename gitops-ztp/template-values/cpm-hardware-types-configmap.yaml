@@ -1,0 +1,35 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cpm-hardware-types-configmap
+  namespace: ztp-cpm
+data:
+  # arch-vendor configuration
+  # PLACEHOLDER: rename arch-vendor to a name for your hardware class.
+  # PowerProfileShared.yaml spec.pstates.min
+  arch-vendor-shared-pstates-min: "1000"
+  # PowerProfileShared.yaml spec.pstates.max
+  arch-vendor-shared-pstates-max: "1000"
+  # PowerProfileShared.yaml spec.pstates.epp
+  arch-vendor-shared-pstates-epp: "power"
+  # PowerProfileShared.yaml spec.pstates.governor
+  arch-vendor-shared-pstates-governor: "powersave"
+  # PowerProfileShared.yaml spec.nodeSelector.labelSelector.matchLabels
+  arch-vendor-shared-node-selector: '{"cpm-hardware-class": "arch-vendor"}'
+  # PowerProfilePerformance.yaml spec.pstates.min
+  arch-vendor-performance-pstates-min: "3000"
+  # PowerProfilePerformance.yaml spec.pstates.max
+  arch-vendor-performance-pstates-max: "3500"
+  # PowerProfilePerformance.yaml spec.pstates.epp
+  arch-vendor-performance-pstates-epp: "performance"
+  # PowerProfilePerformance.yaml spec.pstates.governor
+  arch-vendor-performance-pstates-governor: "performance"
+  # PowerProfilePerformance.yaml spec.cstates.names
+  arch-vendor-performance-cstates-names: '{"C1": false, "C1E": false, "C6": false, "POLL": true}'
+  # PowerProfilePerformance.yaml spec.nodeSelector.labelSelector.matchLabels
+  arch-vendor-performance-node-selector: '{"cpm-hardware-class": "arch-vendor"}'
+  # PowerNodeConfig.yaml spec.reservedCPUs
+  arch-vendor-power-node-config-reserved-cpus: '[{"cores": [0, 1], "powerProfile": "performance-arch-vendor"}]'
+  # PowerNodeConfig.yaml spec.nodeSelector.labelSelector.matchLabels
+  arch-vendor-power-node-config-node-selector: '{"cpm-hardware-class": "arch-vendor"}'

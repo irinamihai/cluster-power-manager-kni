@@ -1,0 +1,24 @@
+---
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerNodeConfig
+metadata:
+  name: shared-config
+  namespace: power-manager
+  annotations:
+    ran.openshift.io/ztp-deploy-wave: "6"
+spec:
+  # Example value, documented here for reference; it is never applied.
+  sharedPowerProfile: shared
+  # Placeholder values, documented here for reference; they are never applied.
+  nodeSelector:
+    labelSelector:
+      matchLabels:
+        key: value
+  # The reserved CPUs are set per hardware class by the patch in cpm.yaml, from
+  # cpm-hardware-types-configmap. They must not be present here: the patch
+  # cannot replace a list with a templated string. For reference:
+  #   reservedCPUs:
+  #     - cores:
+  #         - 0
+  #         - 1
+  #       powerProfile: performance-arch-vendor

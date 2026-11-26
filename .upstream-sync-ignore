@@ -11,3 +11,6 @@ hack/upstream-sync.sh
 hack/upstream-sync_test.sh
 OWNERS
 OWNERS_ALIASES
+
+# Downstream-only GitOps/ZTP policies.
+gitops-ztp/

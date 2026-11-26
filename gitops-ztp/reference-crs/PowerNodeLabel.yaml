@@ -1,0 +1,28 @@
+---
+# Labels the nodes that should run the Power Node Agent. Worker nodes are
+# preferred; when a cluster has no worker nodes (for example an SNO cluster),
+# the control-plane/master node is labelled instead.
+object-templates-raw: |
+  {{- $workerRole := "node-role.kubernetes.io/worker" }}
+  {{- $masterRole := "node-role.kubernetes.io/master" }}
+  {{- $nodes := (lookup "v1" "Node" "" "").items }}
+  {{- $hasWorkers := false }}
+  {{- range $nodes }}
+  {{- if hasKey .metadata.labels $workerRole }}
+  {{- $hasWorkers = true }}
+  {{- end }}
+  {{- end }}
+  {{- range $nodes }}
+  {{- $workerNode := hasKey .metadata.labels $workerRole }}
+  {{- $masterNode := hasKey .metadata.labels $masterRole }}
+  {{- if or $workerNode (and (not $hasWorkers) $masterNode) }}
+  - complianceType: musthave
+    objectDefinition:
+      apiVersion: v1
+      kind: Node
+      metadata:
+        name: {{ .metadata.name }}
+        labels:
+          feature.node.kubernetes.io/power-node: "true"
+  {{- end }}
+  {{- end }}

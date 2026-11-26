@@ -1,0 +1,11 @@
+---
+# The Cluster Power Manager CSV only supports AllNamespaces install mode.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: cluster-power-manager
+  namespace: power-manager
+  annotations:
+    operatorframework.io/bundle-unpack-min-retry-interval: 10m
+    ran.openshift.io/ztp-deploy-wave: "2"
+spec: {}

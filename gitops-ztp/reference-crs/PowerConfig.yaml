@@ -1,0 +1,11 @@
+---
+apiVersion: power.cluster-power-manager.github.io/v1alpha1
+kind: PowerConfig
+metadata:
+  name: power-config
+  namespace: power-manager
+  annotations:
+    ran.openshift.io/ztp-deploy-wave: "4"
+spec:
+  powerNodeSelector:
+    feature.node.kubernetes.io/power-node: "true"

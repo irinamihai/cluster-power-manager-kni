@@ -1,0 +1,30 @@
+---
+# Verifies that a PowerNodeState exists for every node running the Power Node
+# Agent and that its status references this class's shared pool, reserved pool
+# and PowerProfiles. It does not check CPU IDs, profile config strings or error
+# lists.
+object-templates-raw: |
+  {{- $powerNodeLabel := "feature.node.kubernetes.io/power-node" }}
+  {{- $classLabel := "cpm-hardware-class" }}
+  {{- range (lookup "v1" "Node" "" "").items }}
+  {{- if eq (index .metadata.labels $powerNodeLabel) "true" }}
+  {{- $class := index .metadata.labels $classLabel }}
+  - complianceType: musthave
+    objectDefinition:
+      apiVersion: power.cluster-power-manager.github.io/v1alpha1
+      kind: PowerNodeState
+      metadata:
+        name: {{ .metadata.name }}-power-state
+        namespace: power-manager
+      status:
+        cpuPools:
+          shared:
+            powerProfile: shared-{{ $class }}
+            powerNodeConfig: shared-config-{{ $class }}
+          reserved:
+            - powerNodeConfig: shared-config-{{ $class }}
+        powerProfiles:
+          - name: shared-{{ $class }}
+          - name: performance-{{ $class }}
+  {{- end }}
+  {{- end }}

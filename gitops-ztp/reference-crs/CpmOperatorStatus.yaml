@@ -1,0 +1,27 @@
+---
+# Verifies that OLM has installed the Cluster Power Manager subscription.
+apiVersion: operators.coreos.com/v1
+kind: Operator
+metadata:
+  name: cluster-power-manager.power-manager
+  annotations:
+    ran.openshift.io/ztp-deploy-wave: "2"
+status:
+  components:
+    refs:
+      - kind: Subscription
+        namespace: power-manager
+        conditions:
+          - type: CatalogSourcesUnhealthy
+            status: "False"
+      - kind: InstallPlan
+        namespace: power-manager
+        conditions:
+          - type: Installed
+            status: "True"
+      - kind: ClusterServiceVersion
+        namespace: power-manager
+        conditions:
+          - type: Succeeded
+            status: "True"
+            reason: InstallSucceeded

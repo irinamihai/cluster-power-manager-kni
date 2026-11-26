@@ -1,0 +1,122 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: cpm
+placementBindingDefaults:
+  name: cpm-placement-binding
+policyDefaults:
+  namespace: ztp-cpm
+  placement:
+    # A named placement lets every policy in this generator share one Placement
+    # and one PlacementBinding.
+    name: cpm-placement
+    labelSelector:
+      matchExpressions:
+        - key: cpm
+          operator: In
+          values: ["true"]
+  # Every policy is inform; TALM/CGU enforces them during a ClusterGroupUpgrade.
+  # Switch to enforce if using outside of TALM.
+  remediationAction: inform
+  severity: low
+  namespaceSelector:
+    exclude:
+      - kube-*
+    include:
+      - '*'
+  evaluationInterval:
+    compliant: 10m
+    noncompliant: 10s
+  # Chain the policies in list order through ACM Policy dependencies if not using TALM.
+  # TALM orders the day-0 ClusterGroupUpgrade by each policy's deploy-wave annotation.
+  # orderPolicies: true
+policies:
+  # We consider one placeholder class: arch-vendor.
+  # The class comes from the node label "cpm-hardware-class".
+  - name: cpm-olm-install
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "2"
+    manifests:
+      - path: reference-crs/CpmSubscriptionNS.yaml
+      - path: reference-crs/CpmSubscriptionOperGroup.yaml
+      - path: reference-crs/CpmSubscription.yaml
+  - name: cpm-olm-install-status
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "2"
+    manifests:
+      - path: reference-crs/CpmOperatorStatus.yaml
+  - name: cpm-node-labels
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "3"
+    manifests:
+      - path: reference-crs/PowerNodeLabel.yaml
+  - name: cpm-power-config
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "4"
+    manifests:
+      - path: reference-crs/PowerConfig.yaml
+  - name: cpm-power-profiles
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "5"
+    manifests:
+      - path: reference-crs/PowerProfileShared.yaml
+        # mustonlyhave makes the live spec match exactly.
+        complianceType: mustonlyhave
+        patches:
+          - metadata:
+              name: shared-arch-vendor
+            spec:
+              pstates:
+                min: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-shared-pstates-min" | toLiteral hub}}'
+                max: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-shared-pstates-max" | toLiteral hub}}'
+                epp: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-shared-pstates-epp" hub}}'
+                governor: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-shared-pstates-governor" hub}}'
+              nodeSelector:
+                labelSelector:
+                  $patch: replace
+                  matchLabels: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-shared-node-selector" | toLiteral hub}}'
+      - path: reference-crs/PowerProfilePerformance.yaml
+        # See the complianceType note on the shared profile entry above.
+        complianceType: mustonlyhave
+        patches:
+          - metadata:
+              name: performance-arch-vendor
+            spec:
+              pstates:
+                min: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-performance-pstates-min" | toLiteral hub}}'
+                max: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-performance-pstates-max" | toLiteral hub}}'
+                epp: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-performance-pstates-epp" hub}}'
+                governor: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-performance-pstates-governor" hub}}'
+              cstates:
+                $patch: replace
+                names: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-performance-cstates-names" | toLiteral hub}}'
+              nodeSelector:
+                labelSelector:
+                  $patch: replace
+                  matchLabels: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-performance-node-selector" | toLiteral hub}}'
+  - name: cpm-power-node-config
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "6"
+    manifests:
+      # One PowerNodeConfig per hardware class, each pointing at its class's shared profile.
+      # Add a class by repeating the entry with its names and keys.
+      - path: reference-crs/PowerNodeConfig.yaml
+        # mustonlyhave makes the live spec match exactly; the default musthave would merge a changed
+        # reservedCPUs list into the existing one and keep removed items.
+        complianceType: mustonlyhave
+        patches:
+          - metadata:
+              name: shared-config-arch-vendor
+            spec:
+              sharedPowerProfile: shared-arch-vendor
+              reservedCPUs: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-power-node-config-reserved-cpus" | toLiteral hub}}'
+              nodeSelector:
+                labelSelector:
+                  $patch: replace
+                  matchLabels: '{{hub fromConfigMap "" "cpm-hardware-types-configmap" "arch-vendor-power-node-config-node-selector" | toLiteral hub}}'
+  - name: cpm-power-node-state-validator
+    policyAnnotations:
+      ran.openshift.io/ztp-deploy-wave: "10000"
+    manifests:
+      - path: reference-crs/PowerNodeStateValidator.yaml
